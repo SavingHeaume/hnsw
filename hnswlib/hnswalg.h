@@ -153,7 +153,7 @@ public:
   }
 
   ~HierarchicalNSW() { clear(); }
-  
+
   void clear() {
     free(data_level0_memory_);
     data_level0_memory_ = nullptr;
@@ -530,6 +530,7 @@ public:
     }
   }
 
+  // 获取节点 internal_id 在 level 0 层 的邻接表的指针。
   linklistsizeint *get_linklist0(tableint internal_id) const {
     return (linklistsizeint *)(data_level0_memory_ +
                                internal_id * size_data_per_element_ +
@@ -543,17 +544,23 @@ public:
                                offsetLevel0_);
   }
 
+  // 获取某个节点在 非 0 层（level ≥ 1） 的邻接表的指针。
   linklistsizeint *get_linklist(tableint internal_id, int level) const {
     return (linklistsizeint *)(linkLists_[internal_id] +
                                (level - 1) * size_links_per_element_);
   }
 
+  // 根据层号获取邻接表指针
   linklistsizeint *get_linklist_at_level(tableint internal_id,
                                          int level) const {
     return level == 0 ? get_linklist0(internal_id)
                       : get_linklist(internal_id, level);
   }
 
+  // 给新加入的节点 cur_c 在指定层 level
+  // 上选出合适的邻居，并在它与这些邻居之间建立互相的边连接
+  // 返回值：next_closest_entry_point
+  // 选择的最后一个邻居（距离最远的），被用作下次层间搜索的入口点。
   tableint mutuallyConnectNewElement(
       const void *data_point, tableint cur_c,
       std::priority_queue<std::pair<dist_t, tableint>,
@@ -694,6 +701,7 @@ public:
     return next_closest_entry_point;
   }
 
+  // 调整索引的容量上限
   void resizeIndex(size_t new_max_elements) {
     if (new_max_elements < cur_element_count)
       throw std::runtime_error("Cannot resize, max element is less than the "
@@ -724,6 +732,7 @@ public:
     max_elements_ = new_max_elements;
   }
 
+  // 用于计算整个索引结构序列化后（即写入文件时）会占用的总字节大小
   size_t indexFileSize() const {
     size_t size = 0;
     size += sizeof(offsetLevel0_);
@@ -753,6 +762,7 @@ public:
     return size;
   }
 
+  // 将内存中的整个 HNSW 索引结构写入到指定路径 (location) 的文件中
   void saveIndex(const std::string &location) {
     std::ofstream output(location, std::ios::binary);
     std::streampos position;
@@ -786,6 +796,7 @@ public:
     output.close();
   }
 
+  // 从文件中读取 HNSW 索引数据，并在内存中重建索引结
   void loadIndex(const std::string &location, SpaceInterface<dist_t> *s,
                  size_t max_elements_i = 0) {
     std::ifstream input(location, std::ios::binary);
@@ -900,6 +911,7 @@ public:
     return;
   }
 
+  // 根据用户提供的外部标签（label），查找并返回对应的向量数据。
   template <typename data_t>
   std::vector<data_t> getDataByLabel(labeltype label) const {
     // lock all operations with element by label
@@ -927,6 +939,7 @@ public:
   /*
    * Marks an element with the given label deleted, does NOT really change the
    * current graph.
+   * 根据标签将一个元素标记为删除。
    */
   void markDelete(labeltype label) {
     // lock all operations with element by label
@@ -968,6 +981,7 @@ public:
   /*
    * Removes the deleted mark of the node, does NOT really change the current
    * graph.
+   * 用于取消元素的删除标记。
    *
    * Note: the method is not safe to use when replacement of deleted elements is
    * enabled, because elements marked as deleted can be completely removed by
@@ -1011,12 +1025,14 @@ public:
   /*
    * Checks the first 16 bits of the memory to see if the element is marked
    * deleted.
+   * 检查具有给定 internalId 的元素是否已被标记为删除。
    */
   bool isMarkedDeleted(tableint internalId) const {
     unsigned char *ll_cur = ((unsigned char *)get_linklist0(internalId)) + 2;
     return *ll_cur & DELETE_MARK;
   }
 
+  // 用于从链接列表的内存块中安全地读取和写入链接的数量。
   unsigned short int getListCount(linklistsizeint *ptr) const {
     return *((unsigned short int *)ptr);
   }
